@@ -1,0 +1,471 @@
+---
+title: "679 HW2"
+author: "Xinyi Wang"
+date: "2/7/2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Q6.
+
+(a)
+```{r}
+p <- function(x1,x2){ z <- exp(-6 + 0.05*x1 + 1*x2); return( round(z/(1+z),2))}
+p(40,3.5)
+```
+
+(b)
+```{r}
+f <- function(x,y)  ((exp(-6+0.05*x+3.5)/(1+exp(-6+0.05*x+3.5)))-y)
+uniroot(f,y=0.5, lower=0, upper=1,extendInt = "yes")$root
+```
+To have 50% of chance, he needs to study at least 50 hours.
+
+#Q8.
+The logistic regression. When K=1 for KNN approach, the training error is zero, therefore the test error for KNN was 36%. It was higher than logistic test error.
+
+#Q9.
+
+(a)
+```{r}
+print( 0.37/(1+0.37))
+```
+
+(b)
+```{r}
+odds <- .16/(1-.16)
+odds
+```
+
+#Q10.
+
+(a)
+```{r}
+require(ISLR)
+data(Weekly)
+summary(Weekly)
+pairs(Weekly)
+```
+Seemingly, the only evidence is at Volume×Year, where shows a logarithmic pattern.
+
+(b)
+```{r}
+glm.fit <- glm(Direction ~ Lag1 + Lag2 + Lag3 + Lag4 + Lag5 + Volume, data=Weekly, family="binomial")
+summary(glm.fit)
+```
+Lag2.
+
+(c)
+```{r}
+library(caret)
+glm.probs <- predict(glm.fit, type="response")
+predicted <- ifelse(glm.probs>.5, "Up", "Down")
+predicted <- as.factor(predicted)
+confusionMatrix(predicted,Weekly$Direction)
+```
+We may conclude that the percentage of correct predictions on the training data is (54+557)/1089 wich is equal to 56%. In other words 44% is the training error rate, which is often overly optimistic. We could also say that for weeks when the market goes up, the model is right 92% of the time (557/(48+557)). For weeks when the market goes down, the model is right only 11.1570248% of the time (54/(54+430)).
+
+(d)
+```{r}
+trainset = (Weekly$Year<=2008)
+testset = Weekly[!trainset,]
+
+glm.fit.d <- glm(Direction ~ Lag2, data=Weekly, subset=trainset, family="binomial")
+glm.probs.d <- predict(glm.fit.d, type="response", newdata=testset)
+glm.preds.d <- ifelse(glm.probs.d>.5, "Up", "Down")
+predicted2 <- as.factor(glm.preds.d)
+confusionMatrix(predicted2,testset$Direction)
+```
+Overall fraction of correct prediction is accuracy of ConfusionMatrix which is 0.625.
+
+(e)
+```{r}
+library(MASS)
+lda.fit.e <- lda(Direction ~ Lag2, data=Weekly, subset=trainset)
+predicted3 <- predict(lda.fit.e, newdata=testset)
+confusionMatrix(predicted3$class,testset$Direction)
+```
+Overall fraction of correct prediction is accuracy of ConfusionMatrix which is 0.625.
+
+(f)
+```{r}
+qda.fit.f <- qda(Direction ~ Lag2, data=Weekly, subset=trainset)
+predicted4 <- predict(qda.fit.f, newdata=testset)
+confusionMatrix(predicted4$class,testset$Direction)
+```
+Overall fraction of correct prediction is accuracy of ConfusionMatrix which is 0.5865.
+
+(g)
+```{r}
+library(class)
+set.seed(1)
+
+train.g = Weekly[trainset, c("Lag2", "Direction")]
+knn.pred = knn(train=data.frame(train.g$Lag2), test=data.frame(testset$Lag2), cl=train.g$Direction, k=1)
+confusionMatrix(knn.pred,testset$Direction)
+```
+Overall fraction of correct prediction is accuracy of ConfusionMatrix which is 0.5.
+
+(h)
+
+Logistic Regression and LDA.
+
+(i)
+##K-NN 
+```{r}
+set.seed(1)
+
+results <- data.frame(k=1:50, acc=NA)
+for(i in 1:50){
+  knn.pred = knn(train=data.frame(train.g$Lag2), test=data.frame(testset$Lag2), cl=train.g$Direction, k=i)
+  cm <- table(testset$Direction, knn.pred)
+  acc <- (cm["Down", "Down"] + cm["Up", "Up"])/sum(cm)
+  results$acc[i] <- acc
+}
+
+plot(x=results$k, y=results$acc, type="l", xlab="K", ylab="accuracy", ylim=c(.4,.65))
+```
+The K doesn’t seem to affect the accuracy values too much. Now, using a QDA model with all Lags predictors plus Volume.
+##QDA
+```{r}
+qda.fit <- qda(Direction ~ Lag1+Lag2+Lag3+Lag4+Lag5+Volume, data=Weekly, subset=trainset)
+qda.preds <- predict(qda.fit, testset)
+# show accuracy
+print( sum(qda.preds$class==testset$Direction)/length(qda.preds$class))
+```
+It had a worse performance than using only the Lag2 predictor shown in g. Again on QDA model, i try with interactive variables between all Lags predictors.
+```{r}
+qda.fit <- qda(Direction ~ Lag1*Lag2*Lag3*Lag4*Lag5 + Volume, data=Weekly, subset=trainset)
+qda.preds <- predict(qda.fit, testset)
+# show accuracy
+print( sum(qda.preds$class==testset$Direction)/length(qda.preds$class))
+```
+The accuracy was even worse than before.For last, i try the same predictors schema using LDA.
+##LDA
+```{r}
+lda.fit <- lda(Direction ~ Lag1*Lag2*Lag3*Lag4*Lag5 + Volume, data=Weekly, subset=trainset)
+lda.preds <- predict(lda.fit, testset)
+# show accuracy
+print( sum(lda.preds$class==testset$Direction)/length(lda.preds$class))
+```
+The LDA performance kept similar of the QDA.
+
+#Q11
+
+(a)
+```{r}
+# remove(list=ls())
+data(Auto)
+Auto$mpg01 <- with(ifelse(mpg>median(mpg), "1", "0"), data=Auto)
+```
+
+(b)
+```{r}
+attach(Auto)
+# Boxplots
+par(mfrow=c(2,3))
+for(i in names(Auto)){
+  # excluding the own mpgs variables and others categorical variables
+  if( grepl(i, pattern="^mpg|cylinders|origin|name")){ next }
+  boxplot(eval(parse(text=i)) ~ mpg01, ylab=i, col=c("red", "blue"))
+}
+```
+As shown in the boxplot, all variables present some trend with mpg01.
+```{r}
+# for the categorical variables i do barplots
+par(mfrow=c(1,2))
+for(i in c("cylinders", "origin")){
+  aux <- table(eval(parse(text=i)), mpg01)
+  cols <- terrain.colors(5)
+  barplot(aux, xlab="mpg01", ylab=i, beside=T,  legend=rownames(aux), col=cols)
+}
+```
+At the barplots, cylinders and origin also show relation with mpg01. For instance, on dataset cars of lower mpg are majoraty from origin 1, which is American.
+
+(c)
+```{r}
+# splitting the train and test set into 75% and 25%
+set.seed(1)
+rows <- sample(x=nrow(Auto), size=.75*nrow(Auto))
+trainset <- Auto[rows, ]
+testset <- Auto[-rows, ]
+```
+
+(d)
+```{r}
+library(MASS)
+lda.fit <- lda(mpg01 ~ displacement+horsepower+weight+acceleration+year+cylinders+origin, data=trainset)
+lda.pred <- predict(lda.fit, testset)
+testset$mpg01 <- as.factor(testset$mpg01)
+confusionMatrix(lda.pred$class,testset$mpg01)
+# test-error
+round(sum(lda.pred$class!=testset$mpg01)/nrow(testset)*100,2)
+```
+
+(e)
+```{r}
+qda.fit <- qda(mpg01 ~ displacement+horsepower+weight+acceleration+year+cylinders+origin, data=trainset)
+qda.pred <- predict(qda.fit, testset)
+confusionMatrix(qda.pred$class,testset$mpg01)
+# test-error
+round(sum(qda.pred$class!=testset$mpg01)/nrow(testset)*100,2)
+```
+
+
+(f)
+```{r}
+lr.fit <- glm(as.factor(mpg01) ~ displacement+horsepower+weight+acceleration+year+cylinders+origin, data=trainset, family="binomial")
+lr.probs <- predict(lr.fit, testset, type="response")
+lr.pred <- ifelse(lr.probs>0.5, "1", "0")
+lr.pred <- as.factor(lr.pred)
+confusionMatrix(lr.pred,testset$mpg01)
+# test-error
+round(sum(lr.pred!=testset$mpg01)/nrow(testset)*100,2)
+```
+
+(g)
+```{r}
+library(class)
+
+sel.variables <- which(names(trainset)%in%c("mpg01", "displacement", "horsepower", "weight", "acceleration", "year", "cylinders", "origin"))
+
+set.seed(1)
+accuracies <- data.frame("k"=1:10, acc=NA)
+for(k in 1:10){
+  knn.pred <- knn(train=trainset[, sel.variables], test=testset[, sel.variables], cl=trainset$mpg01, k=k)
+  
+  # test-error
+  accuracies$acc[k]= round(sum(knn.pred!=testset$mpg01)/nrow(testset)*100,2)
+}
+
+accuracies
+```
+The k=7 was the best response, outperformed all others.
+
+#Q12
+
+(a)
+```{r}
+Power <- function(){ print( 2^3)}
+Power()
+```
+
+(b)
+```{r}
+Power2 <- function(x,a){
+  print( x^a)
+}
+
+Power2(3,8)
+```
+
+(c)
+```{r}
+Power2(10,3)
+Power2(8,17)
+Power2(131,3)
+```
+
+(d)
+```{r}
+Power3 <- function(x,a){
+  return( x^a)
+}
+```
+
+(e)
+```{r}
+par(mfrow=c(2,2))
+plot(x = x<-1:10, y= y<-Power3(x,2), xlab="x", ylab="x²")
+plot(x,y,log="x", xlab="log(x) scale", ylab="x²")
+plot(x,y,log="y", xlab="x", ylab="log(x²) scale")
+plot(x,y,log="xy", xlab="log(x) scale", ylab="log(x²) scale")
+```
+
+(f)
+```{r}
+par(mfrow=c(1,1))
+PlotPower <- function(x,a){
+  plot(x = x, y= y<-Power3(x,a), xlab="x", ylab=paste0("x^",a))
+}
+
+PlotPower(1:10,3)
+```
+
+#Q13
+```{r}
+data("Boston")
+Boston$crim01 <- ifelse(Boston$crim > median(Boston$crim), "1", "0")
+attach(Boston)
+par(mfrow=c(2,6))
+for(i in names(Boston)){
+  # excluding the own crime variables and the chas variable
+  if( grepl(i, pattern="^crim|^chas")){ next}
+  boxplot(eval(parse(text=i)) ~ crim01, ylab=i, col=c("red", "blue"), varwidth=T)
+}
+```
+All variable shows trend to crim01, exceptrm which has some difference among the crimes situation but its most population lies in the same range values.
+
+For Chas variable, i do a barplot, it is a dummy variable to if the tract bounds the river.
+```{r}
+par(mfrow=c(1,1))
+aux <- table(chas, crim01)
+barplot(aux, beside = T, legend=rownames(aux), col=c("red", "blue"))
+```
+The chas doesn’t show much difference for crime situation.
+
+Selecting the relevant variables, i use the: zn, indus, nox, age, dis, rad, tax, ptratio, black, lstat and medv.
+```{r}
+set.seed(1)
+vars = c("zn", "indus", "nox", "age", "dis", "rad", "tax", "ptratio", "black", "lstat", "medv", "crim01")
+rows = sample(x=nrow(Boston), size=.75*nrow(Boston))
+trainset = Boston[rows, vars]
+testset = Boston[-rows, vars]
+```
+
+##Modeling Round 1
+```{r}
+# LOGISTIC REGRESSION
+lr.fit <- glm(as.factor(crim01) ~ ., data=trainset, family="binomial")
+lr.probs <- predict(lr.fit, testset, type="response")
+lr.pred <- ifelse(lr.probs>.5, "1","0")
+
+test.err.lr <- mean(lr.pred!=testset$crim01)
+
+# LINEAR DISCRIMINANT ANALYSIS
+lda.fit <- lda(crim01 ~ ., data=trainset)
+lda.pred <- predict(lda.fit, testset)
+test.err.lda <- mean(lda.pred$class!=testset$crim01)
+
+# QUADRATIC DISCRIMINANT ANALYSIS
+qda.fit <- qda(crim01 ~ ., data=trainset)
+qda.pred <- predict(qda.fit, testset)
+test.err.qda <- mean(qda.pred$class!=testset$crim01)
+
+# KNN-1
+knn.pred <- knn(train=trainset, test=testset, cl=trainset$crim01, k=1)
+test.err.knn_1 <- mean(knn.pred!=testset$crim01)
+
+# KNN-CV
+err.knn_cv <- rep(NA,9)
+for(i in 2:10){
+  knn.pred <- knn(train=trainset, test=testset, cl=trainset$crim01, k=i)
+  err.knn_cv[i-1] <- mean(knn.pred!=testset$crim01)
+}
+test.err_knn_CV <- min(err.knn_cv)
+
+round1 = data.frame("method"=c("LR", "LDA", "QDA", "KNN-1", "KNN-CV"), test.err=c(test.err.lr, test.err.lda, test.err.qda, test.err.knn_1, test.err_knn_CV))
+round1
+```
+Both KNN methods outperforms the others, maybe it’s related to the form of the data, which can be more non-linear and either differs more from a gaussian shape. The logistic regression performs better than LDA and QDA, that enhances the assumption of a non Gaussian distribution from the data. And as QDA performs better than LDA, i can imagine that the non-linear decision boundary helps this decision. So the non-parametric method presents the best results.
+
+Doing a second round of modelling, this time choosing only the predictors which seemed more relevants by the logistic regression coefficients. Cheking the p-values:
+```{r}
+coefs <- summary(lr.fit)$coefficients
+coefs[order(coefs[,"Pr(>|z|)"], decreasing=F),]
+```
+I choose nox, rad, ptratio, black and medv.
+```{r}
+vars <- c("nox", "rad", "ptratio", "black", "medv", "dis", "crim01")
+trainset = Boston[rows, vars]
+testset = Boston[-rows, vars]
+```
+
+##Modeling Round 2
+```{r}
+# LOGISTIC REGRESSION
+lr.fit <- glm(as.factor(crim01) ~ ., data=trainset, family="binomial")
+lr.probs <- predict(lr.fit, testset, type="response")
+lr.pred <- ifelse(lr.probs>.5, "1","0")
+
+test.err.lr <- mean(lr.pred!=testset$crim01)
+
+# LINEAR DISCRIMINANT ANALYSIS
+lda.fit <- lda(crim01 ~ ., data=trainset)
+lda.pred <- predict(lda.fit, testset)
+test.err.lda <- mean(lda.pred$class!=testset$crim01)
+
+# QUADRATIC DISCRIMINANT ANALYSIS
+qda.fit <- qda(crim01 ~ ., data=trainset)
+qda.pred <- predict(qda.fit, testset)
+test.err.qda <- mean(qda.pred$class!=testset$crim01)
+
+# KNN-1
+knn.pred <- knn(train=trainset, test=testset, cl=trainset$crim01, k=1)
+test.err.knn_1 <- mean(knn.pred!=testset$crim01)
+
+# KNN-CV
+err.knn_cv <- rep(NA,9)
+for(i in 2:10){
+  knn.pred <- knn(train=trainset, test=testset, cl=trainset$crim01, k=i)
+  err.knn_cv[i-1] <- mean(knn.pred!=testset$crim01)
+}
+test.err_knn_CV <- min(err.knn_cv)
+
+round2 = data.frame("method"=c("LR", "LDA", "QDA", "KNN-1", "KNN-CV"), test.err=c(test.err.lr, test.err.lda, test.err.qda, test.err.knn_1, test.err_knn_CV))
+round2
+```
+On round 2, the general performance was worse for all approachs, so probably there are relevent information in the excluded variables.
+
+Now, i try again, using the most 6 variable that seemed, in my observation from the graphs shown before, more associated with crime index. They are zn, indus, nox, dis, rad and tax.
+
+```{r}
+vars <- c("zn","indus", "nox", "dis", "rad", "tax", "crim01")
+trainset = Boston[rows, vars]
+testset = Boston[-rows, vars]
+```
+
+##Modeling Round 2
+```{r}
+# LOGISTIC REGRESSION
+lr.fit <- glm(as.factor(crim01) ~ ., data=trainset, family="binomial")
+lr.probs <- predict(lr.fit, testset, type="response")
+lr.pred <- ifelse(lr.probs>.5, "1","0")
+
+test.err.lr <- mean(lr.pred!=testset$crim01)
+
+# LINEAR DISCRIMINANT ANALYSIS(LDA)
+lda.fit <- lda(crim01 ~ ., data=trainset)
+lda.pred <- predict(lda.fit, testset)
+test.err.lda <- mean(lda.pred$class!=testset$crim01)
+
+# QUADRATIC DISCRIMINANT ANALYSIS(QDA)
+qda.fit <- qda(crim01 ~ ., data=trainset)
+qda.pred <- predict(qda.fit, testset)
+test.err.qda <- mean(qda.pred$class!=testset$crim01)
+
+# KNN-1
+knn.pred <- knn(train=trainset, test=testset, cl=trainset$crim01, k=1)
+test.err.knn_1 <- mean(knn.pred!=testset$crim01)
+
+# KNN-CV
+err.knn_cv <- rep(NA,9)
+for(i in 2:10){
+  knn.pred <- knn(train=trainset, test=testset, cl=trainset$crim01, k=i)
+  err.knn_cv[i-1] <- mean(knn.pred!=testset$crim01)
+}
+test.err_knn_CV <- min(err.knn_cv)
+
+round3 = data.frame("method"=c("LR", "LDA", "QDA", "KNN-1", "KNN-CV"), test.err=c(test.err.lr, test.err.lda, test.err.qda, test.err.knn_1, test.err_knn_CV))
+round3
+```
+Surprisingly, the third round of my chosen variable, based on the boxplot, had the greatest performance of the previous rounds. Mainly the QDA and KNNs approachs. KNN-1 had showed test error of 0.7%. The linear approachs were very bad.
+
+When i eliminate some variables, it helped for the non-linear approachs did better models. Seeing the three rounds on the graph bellow.
+```{r}
+performances <- rbind(cbind(round="round_1", round1), cbind(round="round_2", round2), cbind(round="round_3", round3))
+
+library(reshape2)
+dcast(data=performances, method ~ round, value.var="test.err")
+```
+
+```{r}
+library(ggplot2)
+ggplot(data=performances, aes(x=method,y=test.err)) + geom_bar(stat="identity", aes(fill=method)) + coord_flip() + facet_grid(round ~ .)
+```
+
+
+
